@@ -11,6 +11,7 @@ body {
     justify-content: center;
     min-height: 100vh;
     background-color: #f5f5f5;
+    padding: 10px;
 }
 
 .chat-container {
@@ -156,6 +157,7 @@ body {
     background-color: #555;
 }
 
+/* Estilo para o bloco de notificação final */
 .final-notification {
     background-color: #f0f0f0;
     padding: 20px;
@@ -185,6 +187,7 @@ body {
     background-color: #45a049;
 }
 
+/* Estilos específicos para os botões de seleção de profissionais */
 .professional-option {
     display: flex;
     align-items: center;
@@ -208,4 +211,59 @@ body {
     height: 40px;
     border-radius: 50%;
     margin-right: 10px;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .chat-container {
+        max-width: 90%;
+    }
+
+    .chat-header h1 {
+        font-size: 1em;
+    }
+
+    .final-notification {
+        padding: 15px;
+    }
+
+    .input-container input, .notify-button {
+        font-size: 0.9em;
+    }
+}
+
+@media (max-width: 480px) {
+    .chat-container {
+        max-width: 100%;
+    }
+
+    .input-container {
+        padding: 10px;
+    }
+
+    .input-container input {
+        padding: 8px;
+        font-size: 0.8em;
+    }
+
+    .input-container button {
+        padding: 8px 12px;
+        font-size: 0.8em;
+    }
+
+    .professional-option {
+        flex-direction: column;
+        padding: 8px;
+    }
+
+    .professional-image {
+        width: 30px;
+        height: 30px;
+        margin-right: 0;
+        margin-bottom: 5px;
+    }
+
+    .options {
+        gap: 8px;
+    }
 }
