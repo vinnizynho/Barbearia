@@ -1,0 +1,14 @@
+{
+    "name": "barber-backend",
+    "version": "1.0.0",
+    "main": "api/horarios.js",
+    "scripts": {
+      "start": "node api/horarios.js"
+    },
+    "dependencies": {
+      "express": "^4.17.1",
+      "mongoose": "^5.12.3",
+      "cors": "^2.8.5"
+    }
+  }
+  
