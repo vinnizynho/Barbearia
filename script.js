@@ -15,8 +15,6 @@ const services = [
     "Luzes + corte", "Sobrancelha", "Pezinho", "Barba na maquininha",
     "Relaxamento + corte", "Limpeza de pele", "Cera quente nariz", "Desenhos", "Bigode"
 ];
-
-// Informações dos profissionais, incluindo URL das fotos
 const professionals = [
     { name: "Hector Gimenez", image: "https://s3.amazonaws.com/we-barber-chat-config/app_schedule/production/c85de031-3110-4e68-bdf9-b38e983158ca/profile/11725377f00b9b.png" },
     { name: "Alejandro José", image: "https://s3.amazonaws.com/we-barber-chat-config/app_schedule/production/c85de031-3110-4e68-bdf9-b38e983158ca/profile/108a4d5a3d3c73.png" }
@@ -28,20 +26,49 @@ const horarios = [
     "17:00", "17:30", "18:00", "18:30", "19:00", "19:30"
 ];
 
-// Função para lidar com a entrada do usuário
-function handleUserInput() {
-    const input = document.getElementById('userInput').value.trim();
-    if (input === '' && step < 2) return;
+// Formata o telefone ao digitar
+document.getElementById('userInput').addEventListener('input', (e) => {
+    if (step === 1) {
+        e.target.value = formatPhoneNumber(e.target.value);
+    }
+});
 
-    document.getElementById('userInput').value = ''; // Limpa o campo de input
-
-    const chatbot = document.getElementById('chatbot');
-    chatbot.innerHTML += `<div class="message user-message">${input}</div>`;
-
-    processStep(input);
+function formatPhoneNumber(value) {
+    value = value.replace(/\D/g, "");
+    if (value.length > 11) value = value.slice(0, 11);
+    if (value.length > 6) {
+        return `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7)}`;
+    } else if (value.length > 2) {
+        return `(${value.slice(0, 2)}) ${value.slice(2)}`;
+    } else {
+        return value;
+    }
 }
 
-// Função para processar cada etapa
+// Lida com a entrada do usuário
+function handleUserInput() {
+    let input = document.getElementById('userInput').value.trim();
+
+    if (step === 1) {
+        if (input.length === 15) {
+            userData.telefone = input;
+            document.getElementById('chatbot').innerHTML += `<div class="message user-message">${input}</div>`;
+            document.getElementById('userInput').value = '';
+            step++;
+            processStep();
+        } else {
+            showTypingIndicator(() => addBotMessage("Por favor, digite um número válido no formato (xx) xxxxx-xxxx."));
+        }
+    } else {
+        if (input) {
+            document.getElementById('chatbot').innerHTML += `<div class="message user-message">${input}</div>`;
+            document.getElementById('userInput').value = '';
+            processStep(input);
+        }
+    }
+}
+
+// Processa cada etapa
 function processStep(input) {
     switch (step) {
         case 0:
@@ -50,35 +77,20 @@ function processStep(input) {
             step++;
             break;
         case 1:
-            userData.telefone = input;
-            showTypingIndicator(
-                () => addBotMessage("Por qual serviço você está procurando?"),
-                () => displayOptions(services)
-            );
-            step++;
             break;
         case 2:
             userData.servico = input;
-            showTypingIndicator(
-                () => addBotMessage("Escolha o profissional desejado:"),
-                () => displayProfessionalOptions(professionals)
-            );
+            showTypingIndicator(() => addBotMessage("Escolha o profissional desejado:"), () => displayProfessionalOptions(professionals));
             step++;
             break;
         case 3:
             userData.profissional = input;
-            showTypingIndicator(
-                () => addBotMessage("Escolha o dia da semana:"),
-                () => displayOptions(diasSemana)
-            );
+            showTypingIndicator(() => addBotMessage("Escolha o dia da semana:"), () => displayOptions(diasSemana));
             step++;
             break;
         case 4:
             userData.dia = input;
-            showTypingIndicator(
-                () => addBotMessage("Escolha o horário disponível:"),
-                () => displayOptions(horarios)
-            );
+            showTypingIndicator(() => addBotMessage("Escolha o horário disponível:"), () => displayAvailableHours(userData.dia));
             step++;
             break;
         case 5:
@@ -90,7 +102,66 @@ function processStep(input) {
     }
 }
 
-// Função para exibir opções de profissionais com fotos
+// Função para obter horários ocupados
+async function fetchAvailableHours(profissional, data) {
+    try {
+        const response = await fetch(`https://alevembarbearia.vercel.app/api/horariosOcupados?profissional=${profissional}&data=${data}`);
+        const horariosOcupados = await response.json();
+        
+        return horarios.filter(hour => !horariosOcupados.includes(hour));
+    } catch (error) {
+        console.error("Erro ao buscar horários ocupados:", error);
+        return [];
+    }
+}
+
+// Exibe horários disponíveis usando a API
+async function displayAvailableHours(dia) {
+    const availableHours = await fetchAvailableHours(userData.profissional, dia);
+    displayOptions(availableHours);
+}
+
+// Função para criar um agendamento
+async function saveBooking(profissional, data, hora) {
+    try {
+        const response = await fetch('https://alevembarbearia.vercel.app/api/agendar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profissional, data, hora })
+        });
+
+        if (response.ok) {
+            addBotMessage("Agendamento criado com sucesso!");
+        } else {
+            const error = await response.json();
+            addBotMessage(`Erro: ${error.error}`);
+        }
+    } catch (error) {
+        console.error("Erro ao criar agendamento:", error);
+        addBotMessage("Ocorreu um erro ao tentar criar o agendamento. Tente novamente.");
+    }
+}
+
+// Finaliza o agendamento e exibe o link de WhatsApp
+async function finalizeBooking() {
+    await saveBooking(userData.profissional, userData.dia, userData.horario);
+
+    const chatbot = document.getElementById('chatbot');
+    const message = `Olá! Eu sou ${userData.nome}. Gostaria de agendar o serviço de "${userData.servico}" com ${userData.profissional} na ${userData.dia} às ${userData.horario}. Meu telefone é ${userData.telefone}.`;
+
+    const phoneNumber = userData.profissional === 'Alejandro José' ? '5544984288265' : 'NUMERO_DO_HECTOR_GIMENEZ';
+    const finalMessage = `
+        <div class="final-notification">
+            <p>Notifique <strong>${userData.profissional}</strong> sobre o seu agendamento:</p>
+            <a href="https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}" target="_blank" class="notify-button">
+                Enviar Agendamento no WhatsApp
+            </a>
+        </div>
+    `;
+    chatbot.innerHTML += finalMessage;
+}
+
+// Exibe opções com fotos dos profissionais
 function displayProfessionalOptions(professionals) {
     const chatbot = document.getElementById('chatbot');
     const optionsContainer = document.createElement('div');
@@ -117,7 +188,7 @@ function displayProfessionalOptions(professionals) {
     chatbot.appendChild(optionsContainer);
 }
 
-// Função para exibir opções como botões de texto
+// Exibe opções como botões de texto
 function displayOptions(options) {
     const chatbot = document.getElementById('chatbot');
     const optionsContainer = document.createElement('div');
@@ -133,21 +204,21 @@ function displayOptions(options) {
     chatbot.appendChild(optionsContainer);
 }
 
-// Função para selecionar uma opção sem duplicar mensagens
+// Seleciona uma opção e avança para a próxima etapa
 function selectOption(option) {
     const chatbot = document.getElementById('chatbot');
     chatbot.innerHTML += `<div class="message user-message">${option}</div>`;
-    document.querySelector('.options').remove(); // Remove o container de opções
-    processStep(option); // Passa o valor da opção diretamente para processar a etapa
+    document.querySelector('.options').remove();
+    processStep(option);
 }
 
-// Função para adicionar uma nova mensagem do bot ao chat
+// Exibe uma nova mensagem do bot
 function addBotMessage(message) {
     const chatbot = document.getElementById('chatbot');
     chatbot.innerHTML += `<div class="message bot-message">${message}</div>`;
 }
 
-// Função para exibir a animação de digitação
+// Animação de digitação do bot
 function showTypingIndicator(callback, postCallback) {
     const chatbot = document.getElementById('chatbot');
     const typingIndicator = document.createElement('div');
@@ -161,28 +232,5 @@ function showTypingIndicator(callback, postCallback) {
         if (postCallback) {
             postCallback();
         }
-    }, 1000); // Tempo de digitação ajustável
-}
-
-// Função final para exibir o link de agendamento no WhatsApp
-function finalizeBooking() {
-    const chatbot = document.getElementById('chatbot');
-    const message = `Olá! Eu sou ${userData.nome}. Gostaria de agendar o serviço de "${userData.servico}" com ${userData.profissional} na ${userData.dia} às ${userData.horario}. Meu telefone é ${userData.telefone}.`;
-
-    // Remove o campo de entrada e o botão de envio ao finalizar
-    document.querySelector('.input-container').style.display = 'none';
-
-    // Define o número do WhatsApp com base no profissional selecionado
-    const phoneNumber = userData.profissional === 'Alejandro José' ? '5544984288265' : 'NUMERO_DO_HECTOR_GIMENEZ';
-    
-    // Cria o conteúdo final da mensagem com o botão de notificação
-    const finalMessage = `
-        <div class="final-notification">
-            <p>Notifique <strong>${userData.profissional}</strong> sobre o seu agendamento:</p>
-            <a href="https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}" target="_blank" class="notify-button">
-                Enviar Agendamento no WhatsApp
-            </a>
-        </div>
-    `;
-    chatbot.innerHTML += finalMessage;
+    }, 1000);
 }
